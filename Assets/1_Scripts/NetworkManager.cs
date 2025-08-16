@@ -9,7 +9,7 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     [Header("Network Settings")]
     [SerializeField] private AppDeviceType device;
 
-    private const int MAX_PLAYER_COUNT = 4;
+    private const int MAX_PLAYER_COUNT = 3;
     private const string ROOM_NAME = "myRoom";
     public const string SMARTPHONE_NICKNAME = "smartphone";
     public const string DESKTOP_NICKNAME = "desktop";

@@ -96,11 +96,11 @@ public class StudyLogger : MonoBehaviour
         }
     }
 
-    public void LogQuizAnswer(string question, string selectedAnswer, bool isCorrect)
+    public void LogQuizAnswer(string question, int selectedAnswer, int correctAnswer, bool isCorrect)
     {
         if (!isLogging) return;
         long timestamp = stopwatch.ElapsedMilliseconds;
-        quizLog.WriteLine($"{timestamp},{question},{selectedAnswer},{isCorrect}");
+        quizLog.WriteLine($"{timestamp},{question},{selectedAnswer},{correctAnswer}, {isCorrect}");
     }
 
     public void LogInteraction(string interactionType, string targetObject, string details = "")

@@ -21,6 +21,8 @@ public class QuizRemoteLoader : MonoBehaviour
     private IEnumerator LoadQuestionsFromJson()
     {
         string targetSheetName;
+        Debug.Log("fetch");
+
         switch (taskManager.CurrentTask)
         {
             case StudySettings.Task.task1:
@@ -29,11 +31,14 @@ public class QuizRemoteLoader : MonoBehaviour
             case StudySettings.Task.task2:
                 targetSheetName = "Questions2";
                 break;
+            case StudySettings.Task.practice:
+                targetSheetName = "Practice";
+                break;
             default:
                 Debug.LogError("Unhandled task type: " + taskManager.CurrentTask + ". Cannot load questions.", this);
                 yield break;
         }
-
+ 
         string url = $"https://sheets.googleapis.com/v4/spreadsheets/{sheetID}/values/{targetSheetName}?key={apiKey}";
 
         UnityWebRequest www = UnityWebRequest.Get(url);
@@ -57,29 +62,51 @@ public class QuizRemoteLoader : MonoBehaviour
         }
 
         List<Question> questions = new List<Question>();
-        const int numQuestionsPerBlock = 4;
+        
         const int headerRows = 1;
 
-        int startRow = (taskManager.BlockID - 1) * numQuestionsPerBlock + headerRows;
-        int endRow = startRow + numQuestionsPerBlock;
-
-        for (int i = startRow; i < endRow && i < values.Count; i++)
+        if (taskManager.IsPracticeSession)
         {
-            var col = values[i];
-            if (col.Count < 8) continue;
-
-            Question q = new Question
+            const int practiceQuestions = 8;
+            for (int i = headerRows; i < headerRows + practiceQuestions && i < values.Count; i++)
             {
-                questionText = col[2],
-                options = new string[]
+                var col = values[i];
+                if (col.Count < 8) continue;
+
+                Question q = new Question
                 {
-                    col[3], col[4], col[5], col[6]
-                },
-                correctIndex = int.TryParse(col[7], out int correct) ? correct : 0
-            };
-            questions.Add(q);
+                    questionText = col[2],
+                    options = new string[] { col[3], col[4], col[5], col[6] },
+                    correctIndex = int.TryParse(col[7], out int correct) ? correct : 0
+                };
+                questions.Add(q);
+            }
         }
 
+        else
+        {
+            const int numQuestionsPerBlock = 4;
+            int startRow = (taskManager.BlockID - 1) * numQuestionsPerBlock + headerRows;
+            int endRow = startRow + numQuestionsPerBlock;
+
+            for (int i = startRow; i < endRow && i < values.Count; i++)
+            {
+                var col = values[i];
+                if (col.Count < 8) continue;
+
+                Question q = new Question
+                {
+                    questionText = col[2],
+                    options = new string[]
+                    {
+                    col[3], col[4], col[5], col[6]
+                    },
+                    correctIndex = int.TryParse(col[7], out int correct) ? correct : 0
+                };
+                questions.Add(q);
+            }
+
+        }
         quizManager.InitializeQuiz(questions);
         taskManager.ReportQuizzesLoaded();
     }

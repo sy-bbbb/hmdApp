@@ -4,6 +4,7 @@ using Photon.Pun;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.XR;
 
 public class TaskManager : MonoBehaviour
 {
@@ -24,14 +25,7 @@ public class TaskManager : MonoBehaviour
     [SerializeField] private Transform sceneObjectRoot;
     [SerializeField] private string prefabsResourcePath = "SceneObjects";
 
-    // --- Public properties ---
-    public bool IsExperimentRunning => isExperimentRunning;
-    public StudySettings.Task CurrentTask => currentTask;
-    public int BlockID => blockID;
-    public List<string> CurrentBlockPrefabNames => BlockDataManager.Instance.GetPrefabNamesForBlock(currentTask, blockID);
-
-
-    // --- Private State ---
+    private bool isPracticeSession = false;
     private List<GameObject> sceneObjects = new List<GameObject>();
     private bool isPhoneConnected = false;
     private bool areLabelsLoaded = false;
@@ -39,18 +33,26 @@ public class TaskManager : MonoBehaviour
     public bool isConfigurationReceived = false;
     private bool isExperimentRunning = false;
 
+    // --- Public properties ---
+    public bool IsExperimentRunning => isExperimentRunning;
+    public StudySettings.Task CurrentTask => currentTask;
+    public int BlockID => blockID;
+    public bool IsPracticeSession => isPracticeSession;
+    public StudySettings.Condition CurrentCondition => currentCondition;
+    public List<string> CurrentBlockPrefabNames => BlockDataManager.Instance.GetPrefabNamesForBlock(currentTask, blockID);
+
     void Start()
     {
         //Shader.WarmupAllShaders();
-        //TurnOffPointers();
         InitialiseUI();
     }
+   
+    //private void TurnOffPointers()
+    //{
+    //    PointerUtils.SetHandRayPointerBehavior(PointerBehavior.AlwaysOff);
+    //    PointerUtils.SetGazePointerBehavior(PointerBehavior.AlwaysOff);
+    //}
 
-    private void TurnOffPointers()
-    {
-        PointerUtils.SetHandRayPointerBehavior(PointerBehavior.AlwaysOff);
-        PointerUtils.SetGazePointerBehavior(PointerBehavior.AlwaysOff);
-    }
     
     private void InitialiseUI()
     {
@@ -96,14 +98,29 @@ public class TaskManager : MonoBehaviour
     public void StartExperiment()
     {
         isExperimentRunning = true;
-        StudyLogger.Instance.StartLogging();
         AssignSceneObjects();
-        conditionManager.SyncInitialDataWithPhone();
-        conditionManager.Initialise(currentCondition, currentTask, blockID, sceneObjects);
+
+        if (isPracticeSession)
+            conditionManager.InitialisePractice(currentCondition, currentTask, blockID, sceneObjects);
+        else
+        {
+            conditionManager.Initialise(currentCondition, currentTask, blockID, sceneObjects);
+            StudyLogger.Instance.StartLogging();
+        }
+            
+        
         if (startButton != null)
             startButton.SetActive(false);
         if (quizPanel != null)
             quizPanel.SetActive(true);
+    }
+
+    public void SwitchConditionForPractice(StudySettings.Condition newCondition)
+    {
+        if (!isPracticeSession || !isExperimentRunning) return;
+
+        currentCondition = newCondition;
+        //conditionManager.SwitchCondition(newCondition, sceneObjects);
     }
 
     private void AssignSceneObjects()
@@ -115,7 +132,7 @@ public class TaskManager : MonoBehaviour
         sceneObjectRoot.localScale = rootTransform.Scale;
 
         List<string> requiredNames = BlockDataManager.Instance.GetPrefabNamesForBlock(currentTask, blockID);
-        List<ObjectTransform> prefabTransforms = BlockDataManager.Instance.GetPrefabTransforms();
+        List<ObjectTransform> prefabTransforms = BlockDataManager.Instance.GetPrefabTransforms(currentTask);
 
         if (requiredNames == null || prefabTransforms == null)
         {
@@ -136,6 +153,7 @@ public class TaskManager : MonoBehaviour
                 GameObject newObject = Instantiate(prefabToSpawn, sceneObjectRoot);
                 newObject.transform.localPosition = objectTransform.Position;
                 newObject.transform.localRotation = objectTransform.Rotation;
+                newObject.transform.localScale = Vector3.one;
                 newObject.name = prefabToSpawn.name;
                 var renderers = newObject.GetComponentsInChildren<MeshRenderer>();
                 foreach (var renderer in renderers)
@@ -156,12 +174,22 @@ public class TaskManager : MonoBehaviour
     [PunRPC]
     public async void ReceiveStudyConfiguration(string participantId, int taskValue, int blockId, int conditionValue)
     {
-        participantID = participantId;
-        currentTask = (StudySettings.Task)taskValue;
-        blockID = blockId;
-        currentCondition = (StudySettings.Condition)conditionValue;
-
-        await StudyLogger.Instance.MakeLogFile(participantID, currentTask.ToString(), currentCondition.ToString(), blockID.ToString());
+        if (taskValue == (int)StudySettings.Task.practice)
+        {
+            currentTask = StudySettings.Task.practice;
+            isPracticeSession = true;
+            participantID = "PRACTICE";
+            blockID = 1;
+            currentCondition = 0;
+        }
+        else
+        {
+            participantID = participantId;
+            currentTask = (StudySettings.Task)taskValue;
+            blockID = blockId;
+            currentCondition = (StudySettings.Condition)conditionValue;
+            await StudyLogger.Instance.MakeLogFile(participantID, currentTask.ToString(), currentCondition.ToString(), blockID.ToString());
+        }
 
         isConfigurationReceived = true;
         BeginPreloading();

@@ -688,7 +688,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0.008}
-  m_LocalScale: {x: 7, y: 1, z: 1}
+  m_LocalScale: {x: 12, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 106854782596896106}
@@ -723,7 +723,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: -0.008}
-  m_LocalScale: {x: 0.224, y: 0.032, z: 0.016}
+  m_LocalScale: {x: 0.384, y: 0.032, z: 0.016}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2882904658229980882}
@@ -826,7 +826,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0.21, y: 0.01}
+  m_SizeDelta: {x: 0.5, y: 0.01}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!23 &5738064423628949130
 MeshRenderer:
@@ -848,7 +848,7 @@ MeshRenderer:
   m_RenderingLayerMask: 4294967295
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 6648803147302403886, guid: c1880b644da44bb4db5b8e8a616b47b3, type: 2}
+  - {fileID: -8536071805199789058, guid: 2e2b004c9ec8682468391dd05fe38c58, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -892,8 +892,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: Button
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: c1880b644da44bb4db5b8e8a616b47b3, type: 2}
-  m_sharedMaterial: {fileID: 6648803147302403886, guid: c1880b644da44bb4db5b8e8a616b47b3, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 2e2b004c9ec8682468391dd05fe38c58, type: 2}
+  m_sharedMaterial: {fileID: -8536071805199789058, guid: 2e2b004c9ec8682468391dd05fe38c58, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -917,8 +917,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 0.08
-  m_fontSizeBase: 0.08
+  m_fontSize: 0.1
+  m_fontSizeBase: 0.1
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -1182,7 +1182,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8907953292891530560}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.3, z: 0}
   m_LocalScale: {x: 5, y: 5, z: 5}
   m_ConstrainProportionsScale: 0
@@ -1354,7 +1354,7 @@ MonoBehaviour:
   states: {fileID: 11400000, guid: 94cb7c679f9e20346a09ae412eef163e, type: 2}
   InputActionId: 0
   isGlobal: 0
-  Dimensions: 1
+  Dimensions: 2
   dimensionIndex: 0
   startDimensionIndex: 0
   CanSelect: 0
@@ -1365,6 +1365,7 @@ MonoBehaviour:
   - Target: {fileID: 2589385747154452940}
     Themes:
     - {fileID: 11400000, guid: 1deabf15bb77e1a41a516904b2b4c0a7, type: 2}
+    - {fileID: 11400000, guid: 545abab53696b314aaa5e211d1a6c3ed, type: 2}
   OnClick:
     m_PersistentCalls:
       m_Calls:

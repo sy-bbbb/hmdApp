@@ -1,5 +1,5 @@
-using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine;
 
 public struct ObjectTransform
 {
@@ -17,6 +17,7 @@ public class TaskData
 {
     public List<List<string>> BlockPrefabNames;
     public RootTransform TaskRootTransform;
+    public List<ObjectTransform> PrefabTransforms;
 }
 
 
@@ -26,6 +27,18 @@ public class BlockDataManager : MonoBehaviour
 
     private Dictionary<StudySettings.Task, TaskData> allTaskData;
     private List<ObjectTransform> prefabTransforms;
+    private Vector3 originTask = Vector3.zero;
+    private int nObjects = 6;
+
+    [Header("Task 1 Settings")]
+    [SerializeField] private float radiusTask1 = 1.5f;
+    [SerializeField] private float startAngleTask1 = -90f;
+    [SerializeField] private float endAngleTask1 = 90f;
+
+    [Header("Task 2 Settings")]
+    [SerializeField] private float radiusTask2 = 1.5f;
+    [SerializeField] private float startAngleTask2 = -25f;
+    [SerializeField] private float endAngleTask2 = 25f;
 
     private void Awake()
     {
@@ -35,7 +48,7 @@ public class BlockDataManager : MonoBehaviour
         {
             Instance = this;
             InitializeTaskData();
-            InitializePrefabTransforms();
+            //InitializePrefabTransforms();
         }
     }
 
@@ -57,8 +70,12 @@ public class BlockDataManager : MonoBehaviour
         return null;
     }
 
-    public List<ObjectTransform> GetPrefabTransforms() => prefabTransforms;
-
+    public List<ObjectTransform> GetPrefabTransforms(StudySettings.Task task)
+    {
+        if (allTaskData.TryGetValue(task, out TaskData data))
+            return data.PrefabTransforms;
+        return new List<ObjectTransform>();
+    }
     private void InitializeTaskData()
     {
         allTaskData = new Dictionary<StudySettings.Task, TaskData>
@@ -66,7 +83,7 @@ public class BlockDataManager : MonoBehaviour
             {
                 StudySettings.Task.task1, new TaskData
                 {
-                    TaskRootTransform = new RootTransform { Position = new Vector3 (0f, -0.2f, 2f), Scale = Vector3.one },
+                    TaskRootTransform = new RootTransform { Position = new Vector3 (0f, -0.4f, 0f), Scale = Vector3.one },
                     BlockPrefabNames = new List<List<string>>
                     {
                         new List<string> { "OrangeClownfish", "PurpleTang", "FlameAngelfish", "NapoleonWrasse", "Boxfish", "Bannerfish" },
@@ -74,13 +91,13 @@ public class BlockDataManager : MonoBehaviour
                         new List<string> { "ClownTriggerfish", "BlueTang", "AngelfishMagestic", "BanggaiCardinalfish", "ClownfishBlack", "Discus" },
                         new List<string> { "EmperorAngelfish", "RoyalAngelfish", "ScrawledFilefish", "AngelfishMultibarred", "AngelfishQueen", "GobyNemateleotris" },
                     },
-
+                    PrefabTransforms = GenerateTask1Positions()
                 }
             },
             {
                 StudySettings.Task.task2, new TaskData
                 {
-                    TaskRootTransform = new RootTransform { Position =  new Vector3 (0f, -0.2f, 2f), Scale = Vector3.one * 0.5f },
+                    TaskRootTransform = new RootTransform { Position =  new Vector3 (0f, -0.4f, 0f), Scale = Vector3.one * 0.5f },
                     BlockPrefabNames = new List<List<string>>
                     {
                         new List<string> { "BlackDurgon", "FlameAngelfish", "AngelfishMultibarred", "Threadfin", "Bannerfish", "ClownfishBlack" },
@@ -88,22 +105,112 @@ public class BlockDataManager : MonoBehaviour
                         new List<string> { "OrangeClownfish", "PurpleTang", "GobyNemateleotris", "BanggaiCardinalfish", "LinedSurgeon", "Discus" },
                         new List<string> { "ScrawledFilefish", "NapoleonWrasse", "AngelfishBlueface", "AngelfishMagestic", "ClownTriggerfish", "AngelfishQueen" },
                     },
+                    PrefabTransforms = GenerateTask2Positions()
+                }
+            },
+            {
+                StudySettings.Task.practice, new TaskData
+                {
+                    TaskRootTransform = new RootTransform { Position =  new Vector3 (0f, -0.4f, 0f), Scale = Vector3.one },
+                    BlockPrefabNames = new List<List<string>>
+                    {
+                        new List<string> { "DoubleSaddle", "Copperband", "Fusilier", "AngelfishFlagfin", "MoorishIdol", "Mandarinfish" },
+                        new List<string> { "DoubleSaddle", "Copperband", "Fusilier", "AngelfishFlagfin", "MoorishIdol", "Mandarinfish" },
+                        new List<string> { "DoubleSaddle", "Copperband", "Fusilier", "AngelfishFlagfin", "MoorishIdol", "Mandarinfish" },
+                        new List<string> { "DoubleSaddle", "Copperband", "Fusilier", "AngelfishFlagfin", "MoorishIdol", "Mandarinfish" },
+                    },
+                    PrefabTransforms = GeneratePracticePositions()
                 }
             }
         };
     }
 
-    private void InitializePrefabTransforms()
+    private List<ObjectTransform> GenerateTask1Positions()
     {
-        prefabTransforms = new List<ObjectTransform>
+        List<ObjectTransform> transforms = new List<ObjectTransform>();
+
+        for (int i = 0; i < nObjects; i++)
         {
-            new ObjectTransform { Position = new Vector3(-0.655f, 0.02f, -0.962f), Rotation = new Quaternion(0.0f, -0.1305f, 0.0f, 0.9914f) },
-            new ObjectTransform { Position = new Vector3(0.009f, 0.0f, -0.510f), Rotation = new Quaternion(0.0f, 0.0f, 0.0f, 1.0f) },
-            new ObjectTransform { Position = new Vector3(1.058f, 0.0f, -0.642f), Rotation = new Quaternion(0.0f, 0.2816f, 0.0f, 0.9595f) },
-            new ObjectTransform { Position = new Vector3(0.849f, 0.0f, -1.747f), Rotation = new Quaternion(0.0f, 0.983f, 0.0f, 0.185f) },
-            new ObjectTransform { Position = new Vector3(0.0f, -0.059f, -2.126f), Rotation = new Quaternion(0.0f, 1.0f, 0.0f, 0.0f) },
-            new ObjectTransform { Position = new Vector3(-0.692f, 0.0f, -1.745f), Rotation = new Quaternion(0.0f, 0.9786f, 0.0f, -0.2058f) }
-        };
+            Vector3 position = GetCoordinates(i, nObjects, radiusTask1, originTask, startAngleTask1, endAngleTask1);
+            transforms.Add(new ObjectTransform
+            {
+                Position = position,
+                Rotation = GetTask1Rotation(i)
+            });
+        }
+        ShuffleList(transforms);
+
+        return transforms;
+    }
+
+    private List<ObjectTransform> GenerateTask2Positions()
+    {
+        List<ObjectTransform> transforms = new List<ObjectTransform>();
+
+        for (int i = 0; i < nObjects; i++)
+        {
+            Vector3 position = GetCoordinates(i, nObjects, radiusTask2, originTask, startAngleTask2, endAngleTask2);
+            transforms.Add(new ObjectTransform
+            {
+                Position = position,
+                Rotation = GetTask2Rotation(i)
+            });
+        }
+        ShuffleList(transforms);
+
+        return transforms;
+    }
+
+    private List<ObjectTransform> GeneratePracticePositions()
+    {
+        List<ObjectTransform> transforms = new List<ObjectTransform>();
+
+        for (int i = 0; i < nObjects; i++)
+        {
+            Vector3 position = GetCoordinates(i, nObjects, 1.5f, originTask, -60f, 60f);
+            transforms.Add(new ObjectTransform
+            {
+                Position = position,
+                Rotation = GetTask2Rotation(i)
+            });
+        }
+        ShuffleList(transforms);
+
+        return transforms;
+    }
+    private void ShuffleList<T>(List<T> list)
+    {
+        for (int i = list.Count - 1; i > 0; i--)
+        {
+            int randomIndex = Random.Range(0, i + 1);
+            T temp = list[i];
+            list[i] = list[randomIndex];
+            list[randomIndex] = temp;
+        }
+    }
+
+
+    private Vector3 GetCoordinates(int index, int totalObjects, float radius, Vector3 origin, float startAngle, float endAngle)
+    {
+        float angleDeg = startAngle + index * (endAngle - startAngle) / (totalObjects - 1);
+        float angleRad = angleDeg * Mathf.Deg2Rad;
+        float x = origin.x + radius * Mathf.Sin(angleRad);
+        float z = origin.z + radius * Mathf.Cos(angleRad);
+        float y = origin.y;
+
+        return new Vector3(x, y, z);
+    }
+
+    private Quaternion GetTask1Rotation(int index)
+    {
+        float angleDeg = startAngleTask1 + index * (endAngleTask1 - startAngleTask1) / (nObjects - 1);
+        return Quaternion.Euler(0, angleDeg + 180f, 0);
+    }
+
+    private Quaternion GetTask2Rotation(int index)
+    {
+        float angleDeg = startAngleTask2 + index * (endAngleTask2 - startAngleTask2) / (nObjects - 1);
+        return Quaternion.Euler(0, angleDeg, 0);
     }
 }
 

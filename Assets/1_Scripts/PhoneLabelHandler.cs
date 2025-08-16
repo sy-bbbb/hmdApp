@@ -38,7 +38,9 @@ public class PhoneLabelHandler : MonoBehaviour
     // Data fetched from Google Sheets
     [Header("Label Data")]
     [TextArea, SerializeField] private List<string> labelContents;
+    [SerializeField] private List<string> labelTitles;
     public List<string> LabelContents => labelContents;
+    public List<string> LabelTitles => labelTitles;
 
     private void Start()
     {
@@ -52,7 +54,6 @@ public class PhoneLabelHandler : MonoBehaviour
     public void StartFetchingLabels()
     {
         List<string> requiredNames = taskManager.CurrentBlockPrefabNames;
-        Debug.Log(requiredNames);
         StartCoroutine(FetchSheetDataCoroutine(requiredNames));
     }
 
@@ -172,9 +173,11 @@ public class PhoneLabelHandler : MonoBehaviour
             var data = JSON.Parse(www.downloadHandler.text);
             var values = data["values"];
             const int nameColumnIndex = 1;
+            const int titleColumnIndex = 6;
             const int contentColumnIndex = 4;
 
             var foundLabels = new Dictionary<string, string>();
+            var foundTitles = new Dictionary<string, string>();
 
             for (int i = 1; i < values.Count; i++)
             {
@@ -184,15 +187,28 @@ public class PhoneLabelHandler : MonoBehaviour
                 if (requiredPrefabNames.Contains(sheetPrefabName))
                 {
                     string content = row[contentColumnIndex].Value ?? "Data not found";
+                    string title = row[titleColumnIndex].Value ?? "No Title"; //
+
                     foundLabels[sheetPrefabName] = content;
+                    foundTitles[sheetPrefabName] = title;
                 }
             }
 
             labelContents.Clear();
+            labelTitles.Clear();
+
             foreach (string requiredName in requiredPrefabNames)
             {
                 if (foundLabels.TryGetValue(requiredName, out string content))
+                {
                     labelContents.Add(content);
+                    if (foundTitles.TryGetValue(requiredName, out string title))
+                        labelTitles.Add(title);
+                    else
+                        labelTitles.Add("No Title");
+
+                }
+                    
                 else
                     Debug.LogWarning($"Label for prefab '{requiredName}' not found in Google Sheet.");
             }
@@ -212,13 +228,12 @@ public class PhoneLabelHandler : MonoBehaviour
         if (!phoneDebugging) return;
         for (int i = 0; i < labelThumbnails.Count; i++)
         {
-            if (i < labelContents.Count)
+            if (i < labelTitles.Count)
             {
                 var textComponent = labelThumbnails[i].GetComponentInChildren<TextMeshProUGUI>();
-                if (textComponent != null) textComponent.text = labelContents[i];
+                if (textComponent != null) textComponent.text = labelTitles[i];
             }
         }
     }
-
     #endregion
 }

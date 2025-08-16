@@ -5,8 +5,8 @@ using Photon.Realtime;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using TMPro;
 using UnityEngine;
-
 
 [RequireComponent(typeof(PhotonView))]
 public class ConditionManager : MonoBehaviourPunCallbacks
@@ -17,7 +17,6 @@ public class ConditionManager : MonoBehaviourPunCallbacks
     [Header("Component References")]
     [SerializeField] private Transform phoneObject;
     [SerializeField] private PhoneLabelHandler phoneLabelHandler;
-    //[SerializeField] private HoloLensRelativeReceiver phoneReceiver; 
 
     [Header("Interaction Settings")]
     [SerializeField] private float rayLength = 10f;
@@ -29,12 +28,13 @@ public class ConditionManager : MonoBehaviourPunCallbacks
     [SerializeField] private Material connectionLineMaterial;
     [SerializeField] private Material baseOutlineMaterial;
     [SerializeField] private Color highlightColor = Color.white;
+    [SerializeField] private TextMeshPro conditionLabel;
 
     // State Management
     private TaskManager taskManager;
+    private QuizManager quizManager;
     private PhotonView pv;
     private Player smartphone;
-
     private StudySettings.Condition currentCondition;
     private readonly List<GameObject> sceneObjects = new List<GameObject>();
     private readonly Dictionary<GameObject, Color> objectColors = new Dictionary<GameObject, Color>();
@@ -52,6 +52,11 @@ public class ConditionManager : MonoBehaviourPunCallbacks
     private LineRenderer connectionLine;
     private LineRenderer pointingRayLine;
 
+    private string[] cachedLabelTexts;
+    private string[] cachedLabelTitles;
+
+    public Player Smartphone => smartphone;
+
 
     private void Start()
     {
@@ -68,9 +73,9 @@ public class ConditionManager : MonoBehaviourPunCallbacks
     private void InitialiseComponents()
     {
         taskManager = GetComponent<TaskManager>();
+        quizManager = GetComponent<QuizManager>();
         pv = PhotonView.Get(this);
     }
-
 
     public void Initialise(StudySettings.Condition condition, StudySettings.Task task, int block, List<GameObject> allSceneObjects)
     {
@@ -78,11 +83,121 @@ public class ConditionManager : MonoBehaviourPunCallbacks
         sceneObjects.Clear();
         sceneObjects.AddRange(allSceneObjects);
 
+        cachedLabelTexts = phoneLabelHandler.LabelContents.ToArray();
+        cachedLabelTitles = phoneLabelHandler.LabelTitles.ToArray();
+
         ConfigureCondition();
         phoneLabelHandler.InitializePhoneUI(sceneObjects, objectColors, currentCondition);
-        pv.RPC("InitialiseUIOnPhone", smartphone);
+
+        if (smartphone != null)
+            SyncCompleteStateToPhone();
+
+        conditionLabel.transform.parent.gameObject.SetActive(true);
+        UpdateConditionLabel(condition);
     }
 
+    public void InitialisePractice(StudySettings.Condition condition, StudySettings.Task task, int block, List<GameObject> allSceneObjects)
+    {
+        Initialise(condition, task, block, allSceneObjects);
+    }
+    public void SwitchCondition(StudySettings.Condition newCondition)
+    {
+        CleanupCurrentCondition();
+        if (selectedObject != null)
+            DeselectObject();
+
+        currentCondition = newCondition;
+        objectColors.Clear();
+        ConfigureCondition();
+
+        phoneLabelHandler.InitializePhoneUI(sceneObjects, objectColors, currentCondition);
+
+        if (smartphone != null)
+            SyncCompleteStateToPhone();
+
+        UpdateConditionLabel(newCondition);
+    }
+
+    private void UpdateConditionLabel(StudySettings.Condition condition)
+    {
+        if (conditionLabel == null) return;
+
+        switch (condition)
+        {
+            case StudySettings.Condition.Proximity:
+                conditionLabel.text = "근접 모드";
+                break;
+            case StudySettings.Condition.Line:
+                conditionLabel.text = "선 모드";
+                break;
+            case StudySettings.Condition.Color:
+                conditionLabel.text = "색상 모드";
+                break;
+            case StudySettings.Condition.Highlight:
+                conditionLabel.text = "하이라이트 모드";
+                break;
+            default:
+                conditionLabel.text = condition.ToString();
+                break;
+        }
+    }
+    private void CleanupCurrentCondition()
+    {
+        switch (currentCondition)
+        {
+            case StudySettings.Condition.Color:
+                CleanupColorCondition();
+                break;
+            case StudySettings.Condition.Line:
+                CleanupLineCondition();
+                break;
+            case StudySettings.Condition.Highlight:
+                CleanupHighlightCondition();
+                break;
+        }
+    }
+
+    private void CleanupColorCondition()
+    {
+        foreach (var obj in sceneObjects)
+        {
+            var outline = obj.GetComponent<MeshOutlineHierarchy>();
+            if (outline != null)
+            {
+                if (outline.OutlineMaterial != null)
+                    outline.OutlineMaterial.color = highlightColor; // Reset to white
+                outline.enabled = false;
+                var meshOutlines = obj.GetComponentsInChildren<MeshOutline>();
+                foreach (var meshOutline in meshOutlines)
+                {
+                    if (meshOutline != null)
+                        meshOutline.enabled = false;
+                }
+            }
+        }
+    }
+
+    private void CleanupLineCondition()
+    {
+        if (connectionLine != null)
+            connectionLine.enabled = false;
+    }
+
+    private void CleanupHighlightCondition()
+    {
+        foreach (var obj in sceneObjects)
+        {
+            var outline = obj.GetComponent<MeshOutlineHierarchy>();
+            if (outline != null)
+            {
+                var outlines = obj.GetComponentsInChildren<MeshOutline>();
+                foreach (var meshOutline in outlines)
+                {
+                    meshOutline.enabled = false;
+                }
+            }
+        }
+    }
 
     private void ConfigureCondition()
     {
@@ -130,23 +245,7 @@ public class ConditionManager : MonoBehaviourPunCallbacks
 
         if (taskManager.IsExperimentRunning)
         {
-            SyncInitialDataWithPhone();
-            Debug.Log("Phone reconnected to an ongoing experiment. Syncing UI state.");
-            if (selectedObject != null)
-            {
-                int id = sceneObjects.IndexOf(selectedObject);
-                if (id != -1)
-                {
-                    Color tagColor = Color.white;
-                    if (currentCondition == StudySettings.Condition.Color)
-                        objectColors.TryGetValue(selectedObject, out tagColor);
-
-                    float[] colorArray = { tagColor.r, tagColor.g, tagColor.b, tagColor.a };
-                    pv.RPC("ControlLabelOnPhone", smartphone, true, id, colorArray, "");
-                }
-            }
-            else
-                pv.RPC("InitialiseUIOnPhone", smartphone);
+            SyncCompleteStateToPhone();
         }
     }
 
@@ -157,21 +256,39 @@ public class ConditionManager : MonoBehaviourPunCallbacks
         Debug.Log("Phone disconnected");
     }
 
-    public void SyncInitialDataWithPhone()
+    public void SyncCompleteStateToPhone()
     {
-        if (smartphone != null)
-        {
-            Debug.Log("Syncing initial data.");
-            pv.RPC("ReceiveInitialDataOnPhone", smartphone, (object)phoneLabelHandler.LabelContents.ToArray());
-        }
+        if (smartphone == null) return;
+        int selectedIndex = selectedObject != null ? sceneObjects.IndexOf(selectedObject) : -1;
+        float[][] allColors = ExtractAllColors();
+
+
+        pv.RPC("SyncCompletePhoneState", smartphone,
+            cachedLabelTexts,
+            cachedLabelTitles,
+            allColors,
+            selectedIndex,
+            (int)currentCondition);
+
     }
+
+    private float[][] ExtractAllColors()
+    {
+        float[][] colors = new float[sceneObjects.Count][];
+        for (int i = 0; i < sceneObjects.Count; i++)
+        {
+            Color color = objectColors.ContainsKey(sceneObjects[i]) ? objectColors[sceneObjects[i]] : Color.white;
+            colors[i] = new float[] { color.r, color.g, color.b };
+        }
+        return colors;
+    }
+
     #endregion
 
     #region Interaction Handlers
 
     private void HandleRaySelection()
     {
-        //Transform logicalPhone = phoneReceiver.GetLogicalTransform();
         if (phoneObject == null) return;
 
         pointingRayLine.enabled = isPointing;
@@ -185,9 +302,6 @@ public class ConditionManager : MonoBehaviourPunCallbacks
         Vector3 rayOrigin = PhoneRayOrigin;
         Vector3 rayDirection = phoneObject.forward;
         Ray ray = new(rayOrigin, rayDirection);
-        //Vector3 rayOrigin = PhoneRayOrigin;
-        //Vector3 rayDirection = phoneObject.transform.forward; // Keep phone's forward direction
-        //Ray ray = new(rayOrigin, rayDirection);
         bool didHit = Physics.Raycast(ray, out RaycastHit hit, rayLength, objectLayer | buttonLayer);
 
         UpdateRayVisuals(didHit, hit.point, ray.origin, ray.direction);
@@ -250,10 +364,26 @@ public class ConditionManager : MonoBehaviourPunCallbacks
             }
 
             interactable.OnClick.Invoke();
-            interactable.HasPress = true;
+            //interactable.HasPress = true;
         }
-        else
-            interactable.HasPress = false;
+        //else
+        //{
+        //    if (!IsQuizAnswerButton(buttonObject))
+        //        interactable.HasPress = false;
+        //}
+    }
+
+
+    private bool IsQuizAnswerButton(GameObject buttonObject)
+    {
+        var buttonHelper = buttonObject.GetComponent<ButtonConfigHelper>();
+
+        foreach (var helper in quizManager.ButtonHelpers)
+        {
+            if (helper == buttonHelper)
+                return true;
+        }
+        return false;
     }
 
     private void ResetLastHoveredButton()
@@ -264,7 +394,8 @@ public class ConditionManager : MonoBehaviourPunCallbacks
             if (interactable != null)
             {
                 interactable.HasFocus = false;
-                interactable.HasPress = false;
+                //if (!IsQuizAnswerButton(lastHoveredButton))
+                //    interactable.HasPress = false;
             }
             lastHoveredButton = null;
         }
@@ -272,9 +403,7 @@ public class ConditionManager : MonoBehaviourPunCallbacks
 
     private GameObject GetClosestObjectInProximity()
     {
-        //Transform logicalPhone = phoneReceiver.GetLogicalTransform();
         Collider[] nearbyColliders = Physics.OverlapSphere(phoneObject.position, proximityThreshold, objectLayer);
-        //Collider[] nearbyColliders = Physics.OverlapSphere(logicalPhone.position, proximityThreshold, objectLayer);
         GameObject closestObject = null;
         float minSqrDistance = float.MaxValue;
 
@@ -284,7 +413,6 @@ public class ConditionManager : MonoBehaviourPunCallbacks
             if (root != null)
             {
                 float sqrDistance = (phoneObject.position - col.ClosestPoint(phoneObject.position)).sqrMagnitude;
-                //float sqrDistance = (logicalPhone.position - col.ClosestPoint(logicalPhone.position)).sqrMagnitude;
                 if (sqrDistance < minSqrDistance)
                 {
                     minSqrDistance = sqrDistance;
@@ -300,11 +428,21 @@ public class ConditionManager : MonoBehaviourPunCallbacks
     {
         GameObject closestObject = GetClosestObjectInProximity();
 
-        if (closestObject != null && selectedObject != closestObject) SelectObject(closestObject);
-        else if (closestObject == null && selectedObject != null) DeselectObject();
+        if (closestObject != null && selectedObject != closestObject)
+        {
+            int id = sceneObjects.IndexOf(closestObject);
+            if (!taskManager.IsPracticeSession)
+                StudyLogger.Instance.LogInteraction("proximity", id.ToString(), "AutoSelect");
+            SelectObject(closestObject);
+        }
+            
+        else if (closestObject == null && selectedObject != null)
+        {
+            if (!taskManager.IsPracticeSession)
+                StudyLogger.Instance.LogInteraction("proximity", null, "AutoDeselect");
+            DeselectObject();
+        }  
     }
-
-
     #endregion
 
     #region Object Selection
@@ -316,19 +454,22 @@ public class ConditionManager : MonoBehaviourPunCallbacks
 
         if (currentCondition == StudySettings.Condition.Proximity)
         {
-            StudyLogger.Instance.LogInteraction("object", id.ToString(), "ApproachPrompt");
+            if (!taskManager.IsPracticeSession)
+                StudyLogger.Instance.LogInteraction("object", id.ToString(), "ApproachPrompt");
             StartCoroutine(ShowApproachThenEvaluate());
             return;
         }
 
         if (selectedObject == obj)
         {
-            StudyLogger.Instance.LogInteraction("object", null, "Deselect");
+            if (!taskManager.IsPracticeSession)
+                StudyLogger.Instance.LogInteraction("object", null, "Deselect");
             DeselectObject();
         }
         else
         {
-            StudyLogger.Instance.LogInteraction("object", id.ToString(), "Select");
+            if (!taskManager.IsPracticeSession)
+                StudyLogger.Instance.LogInteraction("object", id.ToString(), "Select");
             SelectObject(obj);
         }
     }
@@ -355,30 +496,19 @@ public class ConditionManager : MonoBehaviourPunCallbacks
     {
         if (obj == null) return;
 
-        if (selectedObject != null) DeselectObject();
+        if (selectedObject != null)
+            DeselectObject();
         selectedObject = obj;
 
-        if (currentCondition == StudySettings.Condition.Line)
+        switch (currentCondition)
         {
-            connectionLine.enabled = true;
-            UpdateLineCue();
-        }
-
-        Color tagColor = Color.white;
-        if (currentCondition == StudySettings.Condition.Color)
-            objectColors.TryGetValue(obj, out tagColor);
-
-        if (currentCondition == StudySettings.Condition.Highlight)
-        {
-            var outlineManager = selectedObject.GetComponent<MeshOutlineHierarchy>() ?? selectedObject.AddComponent<MeshOutlineHierarchy>();
-            if (outlineManager.OutlineMaterial == null)
-            {
-                outlineManager.OutlineMaterial = new Material(baseOutlineMaterial);
-                outlineManager.OutlineWidth = 0.01f;
-                outlineManager.OutlineMaterial.color = highlightColor;
-            }
-            else
-                ChangeHighlight(selectedObject, true);  
+            case StudySettings.Condition.Line:
+                connectionLine.enabled = true;
+                UpdateLineCue();
+                break;
+            case StudySettings.Condition.Highlight:
+                ApplyHighlight(obj, true);
+                break;
         }
 
         int id = sceneObjects.IndexOf(selectedObject);
@@ -386,39 +516,57 @@ public class ConditionManager : MonoBehaviourPunCallbacks
 
         phoneLabelHandler.ShowLabelFullscreen(id);
         if (smartphone != null)
-        {
-            float[] colorArray = { tagColor.r, tagColor.g, tagColor.b, tagColor.a };
-            pv.RPC("ControlLabelOnPhone", smartphone, true, id, colorArray, "");
-        }
+            pv.RPC("ShowFullLabelDirect", smartphone, id);
     }
 
     private void DeselectObject()
     {
         if (selectedObject == null) return;
-        if (currentCondition == StudySettings.Condition.Line && connectionLine != null)
-            connectionLine.enabled = false;
 
-        if (currentCondition == StudySettings.Condition.Highlight)
-            ChangeHighlight(selectedObject, false);
+        switch (currentCondition)
+        {
+            case StudySettings.Condition.Line when connectionLine != null:
+                connectionLine.enabled = false;
+                break;
+            case StudySettings.Condition.Highlight:
+                ApplyHighlight(selectedObject, false);
+                break;
+        }
 
         selectedObject = null;
         phoneLabelHandler.HideLabel();
 
         if (smartphone != null)
-            pv.RPC("ControlLabelOnPhone", smartphone, false, -1, null, "");
+            pv.RPC("ShowOverviewPageDirect", smartphone);
+
     }
 
-    private void ChangeHighlight(GameObject obj, bool enabled)
+    private void ApplyHighlight(GameObject obj, bool enabled)
     {
-        var outlines = obj.GetComponentsInChildren<MeshOutline>();
-        foreach (var outline in outlines)
-            outline.enabled = enabled;
+        var outlineManager = obj.GetComponent<MeshOutlineHierarchy>();
+        if (outlineManager == null && enabled)
+        {
+            outlineManager = obj.AddComponent<MeshOutlineHierarchy>();
+            outlineManager.OutlineMaterial = new Material(baseOutlineMaterial);
+            outlineManager.OutlineWidth = 0.01f;
+            outlineManager.OutlineMaterial.color = highlightColor;
+        }
+        if (outlineManager != null)
+        {
+            var outlines = obj.GetComponentsInChildren<MeshOutline>();
+            foreach (var outline in outlines)
+                outline.enabled = enabled;
+        }
     }
+    public void SelectObjectExternally(GameObject obj) => SelectObject(obj);
+    public void DeselectObjectExternally() => DeselectObject();
 
     public void SendApproachMessageToPhone()
     {
         if (smartphone != null)
-            pv.RPC("ControlLabelOnPhone", smartphone, true, -1, null, "설명을 보려면 가까이 다가가주세요.");
+            pv.RPC("ControlLabelOnPhone", smartphone, true, -1, null,
+                "<size=200%>※<br>설명을 보려면<br>가까이 다가가주세요.</size>"
+                );
     }
 
     public void SendHideMessageToPhone()
@@ -426,9 +574,6 @@ public class ConditionManager : MonoBehaviourPunCallbacks
         if (smartphone != null)
             pv.RPC("ControlLabelOnPhone", smartphone, false, -1, null, "");
     }
-
-    public void SelectObjectExternally(GameObject obj) => SelectObject(obj);
-    public void DeselectObjectExternally() => DeselectObject();
 
     #endregion
 
@@ -464,60 +609,24 @@ public class ConditionManager : MonoBehaviourPunCallbacks
     {
         connectionLine = new GameObject("SelectionLineCue").AddComponent<LineRenderer>();
         connectionLine.material = connectionLineMaterial;
-        connectionLine.startWidth = 0.01f;
-        connectionLine.endWidth = 0.01f;
-
+        connectionLine.startWidth = 0.0001f;
+        connectionLine.endWidth = 0.02f;
         connectionLine.positionCount = 2;
-
-        connectionLine.textureMode = LineTextureMode.Tile;
+        //connectionLine.textureMode = LineTextureMode.Tile;
         connectionLine.enabled = false;
     }
-
-
-    //private Vector3[] CalculateQuadraticBezierCurve(Vector3 startPoint, Vector3 controlPoint, Vector3 endPoint, int segmentCount)
-    //{
-    //    Vector3[] points = new Vector3[segmentCount];
-    //    for (int i = 0; i < segmentCount; i++)
-    //    {
-    //        float t = i / (float)(segmentCount - 1);
-    //        // The quadratic Bezier formula
-    //        points[i] = (1 - t) * (1 - t) * startPoint + 2 * (1 - t) * t * controlPoint + t * t * endPoint;
-    //    }
-    //    return points;
-    //}
-
     #endregion
 
     #region Utility Methods
 
     private void UpdateLineCue()
     {
-
         if (connectionLine != null && selectedObject != null)
         {
-            //Transform logicalPhone = phoneReceiver.GetLogicalTransform();
             connectionLine.SetPosition(0, PhoneRayOrigin);
-            //connectionLine.SetPosition(0, GetPhoneRayOrigin(logicalPhone));
             connectionLine.SetPosition(1, selectedObject.transform.position);
         }
     }
-
-    //private void UpdateLineCue()
-    //{
-    //    if (connectionLine == null || selectedObject == null) return;
-
-    //    Vector3 startPoint = phoneObject.position;
-    //    Vector3 endPoint = selectedObject.position;
-
-    //    // Find the midpoint and add an upward offset. You can adjust the offset value.
-    //    Vector3 controlPoint = (startPoint + endPoint) / 2f + Vector3.up * 0.5f;
-
-    //    // Calculate the points for the curve
-    //    Vector3[] curvePoints = CalculateQuadraticBezierCurve(startPoint, controlPoint, endPoint, connectionLine.positionCount);
-
-    //    // Update the LineRenderer with the new curve points
-    //    connectionLine.SetPositions(curvePoints);
-    //}
 
     private GameObject GetRootObject(GameObject hitObject)
     {
@@ -534,18 +643,11 @@ public class ConditionManager : MonoBehaviourPunCallbacks
     {
         get
         {
-            float offset = 0.05f;
+            float offset = 0.025f;
             Vector3 localHeadPosition = new Vector3(0, 0, 0.1633f / 2.0f + offset);
             return phoneObject.transform.TransformPoint(localHeadPosition);
         }
     }
-
-    //private Vector3 GetPhoneRayOrigin(Transform phoneTransform)
-    //{
-    //    Vector3 localHeadPosition = new Vector3(0, 0, 0.1633f / 2.0f);
-    //    return phoneTransform.TransformPoint(localHeadPosition);
-    //}
-
     #endregion
 
     #region PUN RPCs
@@ -555,20 +657,24 @@ public class ConditionManager : MonoBehaviourPunCallbacks
     {
         if (currentCondition == StudySettings.Condition.Proximity)
         {
-            StudyLogger.Instance.LogInteraction("object", index.ToString(), "ApproachPrompt");
+            if (!taskManager.IsPracticeSession)
+                StudyLogger.Instance.LogInteraction("object", index.ToString(), "ApproachPrompt");
             StartCoroutine(ShowApproachThenEvaluate());
             return;
         }
         if (index >= 0 && index < sceneObjects.Count)
             SelectObject(sceneObjects[index]);
-        StudyLogger.Instance.LogInteraction("phone", index.ToString(), "Select");
+
+        if (!taskManager.IsPracticeSession)
+            StudyLogger.Instance.LogInteraction("phone", index.ToString(), "Select");
     }
 
     [PunRPC]
     public void RequestDeselectFromPhone()
     {
         DeselectObject();
-        StudyLogger.Instance.LogInteraction("phone", null, "Deselect");
+        if (!taskManager.IsPracticeSession)
+            StudyLogger.Instance.LogInteraction("phone", null, "Deselect");
     }
 
     [PunRPC]
